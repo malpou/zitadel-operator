@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: zitadel-operator
+resources:
+  - namespace.yaml
+  - crds/zitadel-operator.io_actions.yaml
+  - crds/zitadel-operator.io_emailproviders.yaml
+  - crds/zitadel-operator.io_loginpolicies.yaml
+  - crds/zitadel-operator.io_machineusers.yaml
+  - crds/zitadel-operator.io_messagetexts.yaml
+  - crds/zitadel-operator.io_oidcapplications.yaml
+  - crds/zitadel-operator.io_projects.yaml
+  - crds/zitadel-operator.io_usergrants.yaml
+  - rbac.yaml
+  - deployment.yaml
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/name: zitadel-operator
+# CI rewrites newTag on every merge to main (see .github/workflows/ci.yml).
+images:
+  - name: ghcr.io/malpou/zitadel-operator
+    newTag: sha-000000000000

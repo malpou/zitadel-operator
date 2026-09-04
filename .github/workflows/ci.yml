@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5
+        with:
+          go-version-file: go.mod
+      - name: Generated deepcopy and CRDs are current
+        run: go generate ./... && git diff --exit-code
+      - run: go build ./... && go vet ./... && go test ./...
+
+  # Strict lint, see .golangci.yml.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@9fae48acfc02a90574d7c304a1758ef9895495fa # v7
+
+  # Immutable sha tag pushed on merge, then pinned into deploy/kustomization.yaml
+  # so GitOps picks it up and "what runs" is answerable from git.
+  image:
+    if: github.event_name == 'push'
+    needs: [check, lint]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3
+      - uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        id: build
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          tag="sha-${SHA:0:12}"
+          docker buildx build --push --platform linux/amd64 \
+            --cache-from type=gha --cache-to type=gha,mode=max \
+            --tag "ghcr.io/malpou/zitadel-operator:${tag}" .
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+      - name: Commit the image tag
+        env:
+          TAG: ${{ steps.build.outputs.tag }}
+        run: |
+          set -euo pipefail
+          curl -sSLo /tmp/kustomize.tgz \
+            https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.3.0/kustomize_v5.3.0_linux_amd64.tar.gz
+          tar xzf /tmp/kustomize.tgz -C /tmp
+          (cd deploy && /tmp/kustomize edit set image "ghcr.io/malpou/zitadel-operator:${TAG}")
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deploy/kustomization.yaml
+          if git diff --cached --quiet; then
+            echo "image tag already ${TAG}, nothing to commit"
+            exit 0
+          fi
+          git commit -m "chore(deploy): zitadel-operator ${TAG} [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main

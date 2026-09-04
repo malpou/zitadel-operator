@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zitadel-operator
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    spec:
+      serviceAccountName: zitadel-operator
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: operator
+          image: ghcr.io/malpou/zitadel-operator
+          # ZITADEL_DOMAIN and ZITADEL_ORG_ID come from a ConfigMap you create,
+          # see README.md.
+          envFrom:
+            - configMapRef:
+                name: zitadel-operator
+          env:
+            - name: ZITADEL_KEY_PATH
+              value: /var/run/secrets/zitadel/key.json
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: health
+              containerPort: 8081
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: admin-sa
+              mountPath: /var/run/secrets/zitadel
+              readOnly: true
+      volumes:
+        - name: admin-sa
+          secret:
+            # The service user's machine key JSON under the key "key.json".
+            secretName: zitadel-operator-key
