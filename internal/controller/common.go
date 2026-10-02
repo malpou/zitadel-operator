@@ -157,15 +157,24 @@ func (r *reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, r.finalizeDelete(ctx, obj)
 	}
 	if r.finalize && controllerutil.AddFinalizer(obj, finalizer) {
+		// Stop here: the update event re-runs Reconcile on a cache that has
+		// caught up with this write. Syncing on now would let that queued run
+		// read the object back without the status written below and act on it.
 		if err := r.kube.Update(ctx, obj); err != nil {
 			return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
 		}
+
+		return ctrl.Result{}, nil
 	}
 
+	base, _ := obj.DeepCopyObject().(client.Object) // a deep copy keeps the concrete type
 	result, retErr := classify(obj, r.impl.sync(ctx, obj))
 	obj.CommonStatus().ObservedGeneration = obj.GetGeneration()
-	if err := r.kube.Status().Update(ctx, obj); err != nil {
-		return ctrl.Result{}, fmt.Errorf("update status: %w", err)
+	// A merge patch carries no resourceVersion, so a cache that lags our own
+	// writes cannot fail the status write with a conflict; it only sends the
+	// fields sync changed.
+	if err := r.kube.Status().Patch(ctx, obj, client.MergeFrom(base)); err != nil {
+		return ctrl.Result{}, fmt.Errorf("patch status: %w", err)
 	}
 
 	return result, retErr
