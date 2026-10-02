@@ -20,4 +20,4 @@ labels:
 # CI rewrites newTag on every merge to main (see .github/workflows/ci.yml).
 images:
 - name: ghcr.io/malpou/zitadel-operator
-  newTag: sha-db7ac1ac8e55
+  newTag: sha-fd239ad0d5d5
