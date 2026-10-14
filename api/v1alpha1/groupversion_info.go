@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-//go:generate go tool controller-gen object paths=./... crd output:crd:dir=../../deploy/crds
+//go:generate go tool controller-gen object paths=./... crd output:crd:dir=../../config/crd
 
 //nolint:gochecknoglobals // scheme registration convention.
 var (

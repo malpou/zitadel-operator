@@ -38,15 +38,18 @@ jobs:
           go-version-file: go.mod
       - uses: golangci/golangci-lint-action@9fae48acfc02a90574d7c304a1758ef9895495fa # v7
 
-  # Immutable sha tag pushed on merge, then pinned into deploy/kustomization.yaml
-  # so GitOps picks it up and "what runs" is answerable from git.
+  # Builds and pushes, nothing else: MetsaApp/deploy runs the operator
+  # (services/zitadel-operator), and Flux image automation there moves its
+  # tag. `main-<commit time>-<sha12>` is what that automation follows: it picks
+  # the newest commit time, so a re-run of an older build never moves the
+  # cluster back. `sha-<sha12>` names one immutable image for a tag set by hand.
   image:
     if: github.event_name == 'push'
     needs: [check, lint]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write
+      contents: read
       packages: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -57,32 +60,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push
-        id: build
         env:
           SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          tag="sha-${SHA:0:12}"
+          image=ghcr.io/malpou/zitadel-operator
           docker buildx build --push --platform linux/amd64 \
             --cache-from type=gha --cache-to type=gha,mode=max \
-            --tag "ghcr.io/malpou/zitadel-operator:${tag}" .
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-      - name: Commit the image tag
-        env:
-          TAG: ${{ steps.build.outputs.tag }}
-        run: |
-          set -euo pipefail
-          curl -sSLo /tmp/kustomize.tgz \
-            https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.3.0/kustomize_v5.3.0_linux_amd64.tar.gz
-          tar xzf /tmp/kustomize.tgz -C /tmp
-          (cd deploy && /tmp/kustomize edit set image "ghcr.io/malpou/zitadel-operator:${TAG}")
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add deploy/kustomization.yaml
-          if git diff --cached --quiet; then
-            echo "image tag already ${TAG}, nothing to commit"
-            exit 0
-          fi
-          git commit -m "chore(deploy): zitadel-operator ${TAG} [skip ci]"
-          git pull --rebase origin main
-          git push origin HEAD:main
+            --tag "${image}:sha-${SHA:0:12}" \
+            --tag "${image}:main-$(git show -s --format=%ct HEAD)-${SHA:0:12}" .
