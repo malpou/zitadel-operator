@@ -50,15 +50,20 @@ controller file so the swap to a v2 API is local.
 The operator authenticates as a Zitadel service user with a machine key
 (JWT profile). The user needs `IAM_OWNER` for the instance-level kinds.
 
-```sh
-kubectl create namespace zitadel-operator
-kubectl -n zitadel-operator create secret generic zitadel-operator-key \
-  --from-file=key.json=<machine key json>
-kubectl -n zitadel-operator create configmap zitadel-operator \
-  --from-literal=ZITADEL_DOMAIN=auth.example.com \
-  --from-literal=ZITADEL_ORG_ID=<organization id>
-kubectl apply -k deploy
-```
+The repository builds the image and nothing else. It runs from
+`MetsaApp/deploy` (`services/zitadel-operator`): the Deployment and its env
+from the metsa-service chart, the RBAC and the CRDs as manifests beside it,
+and the machine key as a `zitadel-operator-key` Secret from Infisical. CI
+pushes `ghcr.io/malpou/zitadel-operator` as `sha-<sha12>` and
+`main-<commit time>-<sha12>` on every merge to `main`; Flux image
+automation in the deploy repo follows the `main-*` tags.
+
+The CRDs are generated into `config/crd/` (`go generate ./...`). When one
+changes, copy it into the deploy repo as
+`services/zitadel-operator/production/crd-<kind>.yaml` in the same change
+that needs it, before the image that relies on it rolls out. A resource the
+operator starts to read or write needs its rule in that directory's
+hand-written `rbac.yaml` the same way.
 
 | Env | Meaning |
 |---|---|
@@ -100,7 +105,7 @@ Go 1.27, plain controller-runtime, `controller-gen` as a Go tool, strict
 `golangci-lint` (`.golangci.yml`).
 
 ```sh
-go generate ./...   # deepcopy + deploy/crds
+go generate ./...   # deepcopy + config/crd
 go build ./... && go vet ./... && go test ./...
 golangci-lint run
 ```
@@ -108,7 +113,7 @@ golangci-lint run
 Run against a cluster and instance from your machine:
 
 ```sh
-kubectl apply -f deploy/crds
+kubectl apply -f config/crd
 ZITADEL_DOMAIN=auth.example.com ZITADEL_KEY_PATH=key.json ZITADEL_ORG_ID=<id> \
   go run ./cmd/zitadel-operator
 ```
