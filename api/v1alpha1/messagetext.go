@@ -3,7 +3,7 @@ package v1alpha1
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 // MessageTextType is which notification mail the text customises.
-// +kubebuilder:validation:Enum=VerifyEmail;PasswordReset;PasswordChange
+// +kubebuilder:validation:Enum=VerifyEmail;PasswordReset;PasswordChange;InviteUser
 type MessageTextType string
 
 // Message text types.
@@ -11,6 +11,7 @@ const (
 	MessageTextVerifyEmail    MessageTextType = "VerifyEmail"
 	MessageTextPasswordReset  MessageTextType = "PasswordReset"
 	MessageTextPasswordChange MessageTextType = "PasswordChange"
+	MessageTextInviteUser     MessageTextType = "InviteUser"
 )
 
 // MessageTextSpec mirrors the Terraform provider's zitadel_default_*_message_text (instance level).

@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 
+	permissionv2 "github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/internal_permission/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -41,3 +42,12 @@ type stubSyncer func(context.Context, *v1alpha1.Project) error
 func (s stubSyncer) sync(ctx context.Context, p *v1alpha1.Project) error { return s(ctx, p) }
 
 func (stubSyncer) remove(context.Context, *v1alpha1.Project) error { return nil }
+
+// SyncOrgRoles runs the MachineUser org-role reconcile against a permission client.
+func SyncOrgRoles(
+	ctx context.Context, perm permissionv2.InternalPermissionServiceClient, orgID, userID string, want []string,
+) error {
+	s := &machineUserSyncer{z: Clients{OrgID: orgID, Permission: perm}}
+
+	return s.syncOrgRoles(ctx, userID, want)
+}

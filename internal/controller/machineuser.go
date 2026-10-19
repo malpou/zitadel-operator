@@ -61,6 +61,9 @@ func (s *machineUserSyncer) sync(ctx context.Context, u *v1alpha1.MachineUser) e
 	if err = s.syncMemberships(ctx, u); err != nil {
 		return err
 	}
+	if err = s.syncOrgRoles(ctx, u.Status.ID, u.Spec.OrgRoles); err != nil {
+		return err
+	}
 
 	return s.syncPAT(ctx, u)
 }
@@ -152,6 +155,56 @@ func (s *machineUserSyncer) syncMemberships(ctx context.Context, u *v1alpha1.Mac
 	return nil
 }
 
+// syncOrgRoles makes the user's administrator roles on the operator's
+// organization exactly want: created when missing, updated when the set
+// differs, removed when want is empty.
+func (s *machineUserSyncer) syncOrgRoles(ctx context.Context, userID string, want []string) error {
+	resp, err := s.z.Permission.ListAdministrators(ctx, &permissionv2.ListAdministratorsRequest{
+		Filters: []*permissionv2.AdministratorSearchFilter{
+			{Filter: &permissionv2.AdministratorSearchFilter_InUserIdsFilter{
+				InUserIdsFilter: &filterv2.InIDsFilter{Ids: []string{userID}},
+			}},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("list administrators: %w", err)
+	}
+	var have []string
+	found := false
+	for _, a := range resp.GetAdministrators() {
+		if a.GetOrganization().GetId() == s.z.OrgID {
+			have, found = a.GetRoles(), true
+
+			break
+		}
+	}
+	res := orgResource(s.z.OrgID)
+	switch {
+	case !found && len(want) == 0, found && len(want) > 0 && sameSet(have, want):
+		return nil
+	case !found:
+		if _, err = s.z.Permission.CreateAdministrator(ctx, &permissionv2.CreateAdministratorRequest{
+			UserId: userID, Resource: res, Roles: want,
+		}); err != nil {
+			return fmt.Errorf("create administrator on organization: %w", err)
+		}
+	case len(want) == 0:
+		if _, err = s.z.Permission.DeleteAdministrator(ctx, &permissionv2.DeleteAdministratorRequest{
+			UserId: userID, Resource: res,
+		}); err != nil && !isNotFound(err) {
+			return fmt.Errorf("delete administrator on organization: %w", err)
+		}
+	default:
+		if _, err = s.z.Permission.UpdateAdministrator(ctx, &permissionv2.UpdateAdministratorRequest{
+			UserId: userID, Resource: res, Roles: want,
+		}); err != nil {
+			return fmt.Errorf("update administrator on organization: %w", err)
+		}
+	}
+
+	return nil
+}
+
 // syncPAT keeps exactly one token on the user. The token value only leaves
 // Zitadel when minted, so adoption of a foreign token ends in
 // SecretUnavailable until a rotation replaces it. A changed expiration is
@@ -212,6 +265,10 @@ func (s *machineUserSyncer) syncPAT(ctx context.Context, u *v1alpha1.MachineUser
 
 func projectResource(projectID string) *permissionv2.ResourceType {
 	return &permissionv2.ResourceType{Resource: &permissionv2.ResourceType_ProjectId{ProjectId: projectID}}
+}
+
+func orgResource(orgID string) *permissionv2.ResourceType {
+	return &permissionv2.ResourceType{Resource: &permissionv2.ResourceType_OrganizationId{OrganizationId: orgID}}
 }
 
 func accessTokenType(t v1alpha1.OIDCTokenType) userv2.AccessTokenType {

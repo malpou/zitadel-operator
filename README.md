@@ -17,7 +17,7 @@ the Terraform provider does, but from CRDs reconciled continuously.
 | `Project` (roles inline) | project.v2 | organization |
 | `OIDCApplication` | application.v2 | project |
 | `UserGrant` | authorization.v2 | organization |
-| `MachineUser` (PAT + PROJECT_OWNER memberships inline) | user.v2, internal_permission.v2 | organization |
+| `MachineUser` (PAT, PROJECT_OWNER memberships and org roles inline) | user.v2, internal_permission.v2 | organization |
 | `LoginPolicy` | management v1 | organization (singleton) |
 | `EmailProvider` | admin v1 | instance |
 | `MessageText` | admin v1 | instance |
