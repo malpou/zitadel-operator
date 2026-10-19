@@ -8,7 +8,8 @@ type PersonalAccessToken struct {
 	SecretRef  SecretRef   `json:"secretRef"`
 }
 
-// MachineUserSpec mirrors the Terraform provider's zitadel_machine_user + zitadel_personal_access_token + zitadel_project_member.
+// MachineUserSpec mirrors the Terraform provider's zitadel_machine_user + zitadel_personal_access_token +
+// zitadel_project_member + zitadel_org_member.
 type MachineUserSpec struct {
 	// +kubebuilder:validation:MinLength=1
 	UserName string `json:"userName"`
@@ -20,6 +21,10 @@ type MachineUserSpec struct {
 	PAT             *PersonalAccessToken `json:"pat,omitempty"`
 	// ProjectOwnerOf lists Project CR names this user is PROJECT_OWNER of.
 	ProjectOwnerOf []string `json:"projectOwnerOf,omitempty"`
+	// OrgRoles are the organization-level administrator roles (for example
+	// ORG_USER_MANAGER) this user holds on the operator's organization. The
+	// list is authoritative: an empty list removes the org membership.
+	OrgRoles []string `json:"orgRoles,omitempty"`
 	// +kubebuilder:default=Delete
 	DeletionPolicy DeletionPolicy `json:"deletionPolicy,omitempty"`
 }

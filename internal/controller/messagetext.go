@@ -55,6 +55,11 @@ func (s *messageTextSyncer) get(
 			&admin.GetCustomPasswordChangeMessageTextRequest{Language: lang})
 
 		return r.GetCustomText(), err
+	case v1alpha1.MessageTextInviteUser:
+		r, err := s.z.Admin.GetCustomInviteUserMessageText(ctx,
+			&admin.GetCustomInviteUserMessageTextRequest{Language: lang})
+
+		return r.GetCustomText(), err
 	}
 
 	return nil, fmt.Errorf("unsupported message text type %q", typ)
@@ -75,6 +80,11 @@ func (s *messageTextSyncer) set(ctx context.Context, spec v1alpha1.MessageTextSp
 		})
 	case v1alpha1.MessageTextPasswordChange:
 		_, err = s.z.Admin.SetDefaultPasswordChangeMessageText(ctx, &admin.SetDefaultPasswordChangeMessageTextRequest{
+			Language: spec.Language, Title: spec.Title, PreHeader: spec.PreHeader, Subject: spec.Subject,
+			Greeting: spec.Greeting, Text: spec.Text, ButtonText: spec.ButtonText,
+		})
+	case v1alpha1.MessageTextInviteUser:
+		_, err = s.z.Admin.SetDefaultInviteUserMessageText(ctx, &admin.SetDefaultInviteUserMessageTextRequest{
 			Language: spec.Language, Title: spec.Title, PreHeader: spec.PreHeader, Subject: spec.Subject,
 			Greeting: spec.Greeting, Text: spec.Text, ButtonText: spec.ButtonText,
 		})

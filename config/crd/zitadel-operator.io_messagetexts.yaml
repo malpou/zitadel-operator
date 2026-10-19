@@ -73,6 +73,7 @@ spec:
                 - VerifyEmail
                 - PasswordReset
                 - PasswordChange
+                - InviteUser
                 type: string
             required:
             - language

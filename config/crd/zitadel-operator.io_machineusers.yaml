@@ -44,8 +44,9 @@ spec:
           metadata:
             type: object
           spec:
-            description: MachineUserSpec mirrors the Terraform provider's zitadel_machine_user
-              + zitadel_personal_access_token + zitadel_project_member.
+            description: |-
+              MachineUserSpec mirrors the Terraform provider's zitadel_machine_user + zitadel_personal_access_token +
+              zitadel_project_member + zitadel_org_member.
             properties:
               accessTokenType:
                 default: BEARER
@@ -67,6 +68,14 @@ spec:
               name:
                 minLength: 1
                 type: string
+              orgRoles:
+                description: |-
+                  OrgRoles are the organization-level administrator roles (for example
+                  ORG_USER_MANAGER) this user holds on the operator's organization. The
+                  list is authoritative: an empty list removes the org membership.
+                items:
+                  type: string
+                type: array
               pat:
                 description: PersonalAccessToken asks for one PAT on the machine user,
                   written to a Secret key "token".
