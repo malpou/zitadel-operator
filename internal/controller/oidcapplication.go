@@ -110,11 +110,14 @@ func (s *oidcApplicationSyncer) find(ctx context.Context, projectID, name string
 	return resp.GetApplications()[0].GetApplicationId(), nil
 }
 
-// syncSecret keeps the output Secret current: client-id always, client-secret
-// from the create response or an explicit rotation.
+// syncSecret keeps the output Secrets current: client-id always, client-secret
+// from the create response or an explicit rotation, into secretRef only.
 func (s *oidcApplicationSyncer) syncSecret(
 	ctx context.Context, app *v1alpha1.OIDCApplication, projectID, createdSecret string,
 ) error {
+	if err := writeClientIDs(ctx, s.kube, app); err != nil {
+		return err
+	}
 	if app.Spec.SecretRef == nil {
 		return nil
 	}
@@ -148,6 +151,19 @@ func (s *oidcApplicationSyncer) syncSecret(
 	}
 	if !has {
 		return errSecretUnavailable
+	}
+
+	return nil
+}
+
+// writeClientIDs writes client-id, and nothing else, into every clientIDRefs
+// Secret.
+func writeClientIDs(ctx context.Context, kube client.Client, app *v1alpha1.OIDCApplication) error {
+	for _, ref := range app.Spec.ClientIDRefs {
+		if err := writeSecret(ctx, kube, ref, app.Namespace,
+			map[string][]byte{keyClientID: []byte(app.Status.ClientID)}); err != nil {
+			return err
+		}
 	}
 
 	return nil

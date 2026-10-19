@@ -65,6 +65,10 @@ type OIDCApplicationSpec struct {
 	SkipNativeAppSuccessPage bool          `json:"skipNativeAppSuccessPage,omitempty"`
 	// SecretRef receives client-id (always) and client-secret (BASIC only).
 	SecretRef *SecretRef `json:"secretRef,omitempty"`
+	// ClientIDRefs are further Secrets that receive client-id only, never
+	// client-secret: for a consumer that checks a token's audience but is not
+	// the client itself, in a namespace other than secretRef's.
+	ClientIDRefs []SecretRef `json:"clientIDRefs,omitempty"`
 	// +kubebuilder:default=Delete
 	DeletionPolicy DeletionPolicy `json:"deletionPolicy,omitempty"`
 }

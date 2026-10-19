@@ -21,6 +21,7 @@ var (
 	SyncSet         = syncSet[string]
 	FlowIDs         = flowIDs
 	RotateRequested = rotateRequested
+	WriteClientIDs  = writeClientIDs
 	ErrDependency   = errDependencyNotReady
 	ErrSecret       = errSecretUnavailable
 	Resync          = resync

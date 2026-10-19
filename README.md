@@ -39,6 +39,9 @@ controller file so the swap to a v2 API is local.
   method BASIC) for applications, and `token` for a MachineUser PAT. These
   values are only known at creation, so annotate the CR with
   `zitadel-operator.io/rotate: <any new value>` to regenerate and rewrite them.
+- `spec.clientIDRefs` on an OIDCApplication writes `client-id` alone into
+  further Secrets, never `client-secret`: for a consumer in another namespace
+  that only checks a token's audience.
 - CRs referencing a `Project` (by CR name, same namespace) wait until that
   Project is Ready, so roles exist before grants use them.
 - Every write to Zitadel is logged as `zitadel write` with the gRPC method.
