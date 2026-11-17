@@ -65,7 +65,7 @@ func (s *oidcApplicationSyncer) sync(ctx context.Context, app *v1alpha1.OIDCAppl
 	if got.GetApplication().GetName() != app.Spec.Name || !oidcEqual(desired, cur) {
 		if _, err = s.z.Application.UpdateApplication(
 			ctx,
-			updateOIDC(app.Status.ID, projectID, app.Spec, desired),
+			updateOIDC(app.Status.ID, projectID, got.GetApplication().GetName(), app.Spec, desired),
 		); err != nil {
 			return fmt.Errorf("update application: %w", err)
 		}
@@ -216,11 +216,20 @@ func oidcEqual(want *applicationv2.CreateOIDCApplicationRequest, got *applicatio
 		want.GetSkipNativeAppSuccessPage() == got.GetSkipNativeAppSuccessPage()
 }
 
+// updateOIDC builds the update for an existing application. The name goes in
+// only when it changes: Zitadel runs a rename for any non-empty name and
+// refuses a rename to the current name (COMMAND-2m8vx, "No changes"), which
+// would fail every settings-only update.
 func updateOIDC(
-	id, projectID string, spec v1alpha1.OIDCApplicationSpec, want *applicationv2.CreateOIDCApplicationRequest,
+	id, projectID, curName string, spec v1alpha1.OIDCApplicationSpec, want *applicationv2.CreateOIDCApplicationRequest,
 ) *applicationv2.UpdateApplicationRequest {
+	name := ""
+	if curName != spec.Name {
+		name = spec.Name
+	}
+
 	return &applicationv2.UpdateApplicationRequest{
-		ApplicationId: id, ProjectId: projectID, Name: spec.Name,
+		ApplicationId: id, ProjectId: projectID, Name: name,
 		ApplicationType: &applicationv2.UpdateApplicationRequest_OidcConfiguration{
 			OidcConfiguration: &applicationv2.UpdateOIDCApplicationConfigurationRequest{
 				RedirectUris:             want.GetRedirectUris(),
