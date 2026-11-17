@@ -48,3 +48,17 @@ func TestWriteClientIDs(t *testing.T) {
 		}
 	}
 }
+
+// TestUpdateOIDCNameOnlyWhenChanged: a settings-only update carries no name,
+// because Zitadel refuses a rename to the current name; a real rename does.
+func TestUpdateOIDCNameOnlyWhenChanged(t *testing.T) {
+	t.Parallel()
+	spec := v1alpha1.OIDCApplicationSpec{Name: "operator"}
+	want := controller.OIDCConfig(spec)
+	if got := controller.UpdateOIDC("app", "proj", "operator", spec, want).GetName(); got != "" {
+		t.Fatalf("unchanged name: got %q, want no name", got)
+	}
+	if got := controller.UpdateOIDC("app", "proj", "old", spec, want).GetName(); got != "operator" {
+		t.Fatalf("renamed: got %q, want operator", got)
+	}
+}

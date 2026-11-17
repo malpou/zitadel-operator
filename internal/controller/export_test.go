@@ -17,6 +17,7 @@ var (
 	Classify        = classify
 	OIDCConfig      = oidcConfig
 	OIDCEqual       = oidcEqual
+	UpdateOIDC      = updateOIDC
 	SameSet         = sameSet
 	SyncSet         = syncSet[string]
 	FlowIDs         = flowIDs
