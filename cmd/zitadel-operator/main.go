@@ -114,6 +114,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		Permission:    zc.InternalPermissionServiceV2(),
 		Management:    zc.ManagementService(),
 		Admin:         zc.AdminService(),
+		Action:        zc.ActionServiceV2(),
 	}); err != nil {
 		return fmt.Errorf("setup controllers: %w", err)
 	}

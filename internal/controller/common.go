@@ -10,6 +10,7 @@ import (
 	"maps"
 	"time"
 
+	actionv2 "github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/action/v2"
 	"github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/admin"
 	applicationv2 "github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/application/v2"
 	authorizationv2 "github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/authorization/v2"
@@ -69,6 +70,7 @@ type Clients struct {
 	Permission    permissionv2.InternalPermissionServiceClient
 	Management    management.ManagementServiceClient
 	Admin         admin.AdminServiceClient
+	Action        actionv2.ActionServiceClient
 }
 
 // syncer is what each kind implements.
@@ -110,6 +112,14 @@ func Setup(mgr ctrl.Manager, z Clients) error {
 		(&reconciler[*v1alpha1.Action]{
 			kube: kube, newObj: func() *v1alpha1.Action { return &v1alpha1.Action{} },
 			impl: &actionSyncer{z: z}, finalize: true,
+		}).setup,
+		(&reconciler[*v1alpha1.Target]{
+			kube: kube, newObj: func() *v1alpha1.Target { return &v1alpha1.Target{} },
+			impl: &targetSyncer{kube: kube, z: z}, finalize: true,
+		}).setup,
+		(&reconciler[*v1alpha1.Execution]{
+			kube: kube, newObj: func() *v1alpha1.Execution { return &v1alpha1.Execution{} },
+			impl: &executionSyncer{kube: kube, z: z}, finalize: true,
 		}).setup,
 		// Singletons carry no finalizer: a prune must never reset the login
 		// policy, drop the mail provider or blank the message texts.
@@ -259,19 +269,23 @@ func ensureID(ctx context.Context, st *v1alpha1.Status, find, create func(contex
 // projectID resolves a Project CR in ns to its Zitadel id, gated on Ready so
 // roles exist before anything references them.
 func projectID(ctx context.Context, kube client.Client, ns, name string) (string, error) {
-	p := &v1alpha1.Project{}
-	if err := kube.Get(ctx, types.NamespacedName{Namespace: ns, Name: name}, p); err != nil {
+	return readyID(ctx, kube, &v1alpha1.Project{}, "project", ns, name)
+}
+
+// readyID resolves a referenced CR in ns to its Zitadel id once it is Ready.
+func readyID(ctx context.Context, kube client.Client, obj Object, kind, ns, name string) (string, error) {
+	if err := kube.Get(ctx, types.NamespacedName{Namespace: ns, Name: name}, obj); err != nil {
 		if apierrors.IsNotFound(err) {
-			return "", fmt.Errorf("%w: project %q not found", errDependencyNotReady, name)
+			return "", fmt.Errorf("%w: %s %q not found", errDependencyNotReady, kind, name)
 		}
 
-		return "", fmt.Errorf("get project %q: %w", name, err)
+		return "", fmt.Errorf("get %s %q: %w", kind, name, err)
 	}
-	if p.Status.ID == "" || !isReady(p) {
-		return "", fmt.Errorf("%w: project %q", errDependencyNotReady, name)
+	if obj.CommonStatus().ID == "" || !isReady(obj) {
+		return "", fmt.Errorf("%w: %s %q", errDependencyNotReady, kind, name)
 	}
 
-	return p.Status.ID, nil
+	return obj.CommonStatus().ID, nil
 }
 
 func secretName(ref v1alpha1.SecretRef, defaultNS string) types.NamespacedName {

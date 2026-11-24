@@ -35,6 +35,8 @@ func addKnownTypes(s *runtime.Scheme) error {
 		&EmailProvider{}, &EmailProviderList{},
 		&MessageText{}, &MessageTextList{},
 		&Action{}, &ActionList{},
+		&Target{}, &TargetList{},
+		&Execution{}, &ExecutionList{},
 	)
 	metav1.AddToGroupVersion(s, GroupVersion)
 

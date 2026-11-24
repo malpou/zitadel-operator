@@ -21,6 +21,8 @@ var (
 	SameSet         = sameSet
 	SyncSet         = syncSet[string]
 	FlowIDs         = flowIDs
+	CreateTarget    = createTarget
+	UpdateTarget    = updateTarget
 	RotateRequested = rotateRequested
 	WriteClientIDs  = writeClientIDs
 	ErrDependency   = errDependencyNotReady
@@ -52,4 +54,20 @@ func SyncOrgRoles(
 	s := &machineUserSyncer{z: Clients{OrgID: orgID, Permission: perm}}
 
 	return s.syncOrgRoles(ctx, userID, want)
+}
+
+// NewTargetReconciler is the Target controller's reconciler.
+func NewTargetReconciler(kube client.Client, z Clients) reconcile.Reconciler {
+	return &reconciler[*v1alpha1.Target]{
+		kube: kube, newObj: func() *v1alpha1.Target { return &v1alpha1.Target{} },
+		impl: &targetSyncer{kube: kube, z: z}, finalize: true,
+	}
+}
+
+// NewExecutionReconciler is the Execution controller's reconciler.
+func NewExecutionReconciler(kube client.Client, z Clients) reconcile.Reconciler {
+	return &reconciler[*v1alpha1.Execution]{
+		kube: kube, newObj: func() *v1alpha1.Execution { return &v1alpha1.Execution{} },
+		impl: &executionSyncer{kube: kube, z: z}, finalize: true,
+	}
 }
