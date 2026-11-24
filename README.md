@@ -3,9 +3,10 @@
 A Kubernetes operator that manages the *content* of a [Zitadel](https://zitadel.com)
 instance from custom resources: projects and roles, OIDC applications, user
 grants, machine users with personal access tokens, the login policy, the SMTP
-email provider, notification message texts, and actions v1 with their flow
-triggers. Client ids, client secrets and tokens are written straight into
-Kubernetes Secrets in the namespaces where your apps read them.
+email provider, notification message texts, actions v1 with their flow
+triggers, and actions v2 targets and executions. Client ids, client secrets,
+tokens and target signing keys are written straight into Kubernetes Secrets
+in the namespaces where your apps read them.
 
 It deploys nothing; it configures an existing Zitadel through its API, the way
 the Terraform provider does, but from CRDs reconciled continuously.
@@ -22,6 +23,8 @@ the Terraform provider does, but from CRDs reconciled continuously.
 | `EmailProvider` | admin v1 | instance |
 | `MessageText` | admin v1 | instance |
 | `Action` (flow triggers inline) | management v1 | organization |
+| `Target` | action.v2 | instance |
+| `Execution` (function conditions) | action.v2 | instance |
 
 The v1-backed kinds are removed in Zitadel V5; each lives in its own
 controller file so the swap to a v2 API is local.
@@ -32,13 +35,23 @@ controller file so the swap to a v2 API is local.
   for something that already exists takes it over instead of duplicating it.
   `EmailProvider` adopts by host and sender address.
 - `status.id` holds the Zitadel id, `status.conditions[Ready]` the state.
+  An execution has no id of its own: its `status.id` is the condition, for
+  example `function/preuserinfo`.
 - `spec.deletionPolicy: Delete|Orphan` on Project, OIDCApplication,
-  UserGrant, MachineUser and Action. LoginPolicy, EmailProvider and
+  UserGrant, MachineUser, Action, Target and Execution. Deleting an
+  Execution empties its condition's target list. LoginPolicy, EmailProvider and
   MessageText carry no finalizer: deleting the CR never touches Zitadel.
 - `spec.secretRef` writes `client-id` (always) and `client-secret` (auth
   method BASIC) for applications, and `token` for a MachineUser PAT. These
   values are only known at creation, so annotate the CR with
   `zitadel-operator.io/rotate: <any new value>` to regenerate and rewrite them.
+- `spec.signingKeySecretRef` on a Target writes `signing-key`, the key
+  Zitadel signs each call with (header `X-ZITADEL-Signature`). Zitadel
+  returns it on every read, so the Secret is kept current; the rotate
+  annotation has Zitadel generate a new one, and the old key stops at once.
+- An Execution owns its condition: `spec.targetRefs` (Target CRs, same
+  namespace, called in order) replaces whatever target list Zitadel held for
+  it, and waits until every Target is Ready.
 - `spec.clientIDRefs` on an OIDCApplication writes `client-id` alone into
   further Secrets, never `client-secret`: for a consumer in another namespace
   that only checks a token's audience.
@@ -112,6 +125,15 @@ go generate ./...   # deepcopy + config/crd
 go build ./... && go vet ./... && go test ./...
 golangci-lint run
 ```
+
+`TestActionsV2AgainstZitadel` drives the Target and Execution reconcilers
+against a real instance and is skipped unless `ZITADEL_TEST_PORT` (an
+insecure Zitadel on localhost) and `ZITADEL_TEST_PAT` (an `IAM_OWNER`
+token) are set. Run it against a throwaway instance only, for example
+`ghcr.io/zitadel/zitadel` with `start-from-init --tlsMode disabled` and
+`ZITADEL_FIRSTINSTANCE_PATPATH` set. Zitadel refuses a target endpoint that
+does not resolve to a public address (`Errors.Target.DeniedURL`), so
+private and cluster-internal URLs fail at create.
 
 Run against a cluster and instance from your machine:
 
